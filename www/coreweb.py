@@ -13,33 +13,33 @@ from apis import APIError
 
 def get(path):
     '''
-    Define decorator @get('path')
+    Define decorator @get('/path')
     '''
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kw):
             return(func(*args, **kw))
         wrapper.__method__ = 'GET'
-        wrapper.__path__ = path
+        wrapper.__route__ = path
         return(wrapper)
     return(decorator)
 
 def post(path):
     '''
-    Define decorator @post('path')
+    Define decorator @post('/path')
     '''
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kw):
             return(func(*args, **kw))
         wrapper.__method__ = 'POST'
-        wrapper.__path__ = path
+        wrapper.__route__ = path
         return(wrapper)
     return(decorator)
 
 def get_required_kw_args(fn):
     args = []
-    params = inspect.signatrue(fn).parameters
+    params = inspect.signature(fn).parameters
     for name, param in params.items():
         if param.kind == inspect.Parameter.KEYWORD_ONLY and param.default == inspect.Parameter.empty:
             args.append(name)
@@ -47,30 +47,30 @@ def get_required_kw_args(fn):
 
 def get_named_kw_args(fn):
     args = []
-    params = inspect.signatrue(fn).parameters
+    params = inspect.signature(fn).parameters
     for name, param in params.items():
         if param.kind == inspect.Parameter.KEYWORD_ONLY:
             args.append(name)
     return(tuple(args))
 
 def has_named_kw_args(fn):
-    params = inspect.signatrue(fn).parameters
+    params = inspect.signature(fn).parameters
     for name, param in params.items():
         if param.kind == inspect.Parameter.KEYWORD_ONLY:
             return(True)
 
 def has_var_kw_arg(fn):
-    params = inspect.signatrue(fn).parameters
+    params = inspect.signature(fn).parameters
     for name, param in params.items():
         if param.kind == inspect.Parameter.VAR_KEYWORD:
             return(True)
 
 def has_request_arg(fn):
-    sig = inspect.signatrue(fn)
+    sig = inspect.signature(fn)
     params = sig.parameters
     found = False
     for name, param in params.items():
-        if name == 'request'
+        if name == 'request':
             found = True
             continue
         if found and (param.kind != inspect.Parameter.VAR_POSITIONAL and param.kind != inspect.Parameter.KEYWORD_ONLY and param.kind != inspect.Parameter.VAR_KEYWORD):
@@ -81,7 +81,7 @@ class RequestHandler(object):
 
     def __init__(self, app, fn):
         self._app = app
-        self._fn = fn
+        self._func = fn
         self._has_request_arg = has_request_arg(fn)
         self._has_var_kw_arg = has_var_kw_arg(fn)
         self._has_named_kw_args = has_named_kw_args(fn)
@@ -91,17 +91,17 @@ class RequestHandler(object):
     @asyncio.coroutine
     def __call__(self, request):
         kw = None
-        if self._has_var_kw_arg or self._has_named_kw_args or self._has_request_arg:
+        if self._has_var_kw_arg or self._has_named_kw_args or self._required_kw_args:
             if request.method == 'POST':
                 if not request.content_type:
-                    return(web.HTTPBadRequest('Missing: Content-Type.')
+                    return(web.HTTPBadRequest('Missing: Content-Type.'))
                 ct = request.content_type.lower()
                 if ct.startswith('application/json'):
                     params = yield from request.json()
                     if not isinstance(params, dict):
                         return(web.HTTPBadRequest('JSON body must be object.'))
                     kw = params
-                elif ct.startswith('application/x-www-form-urlencoded'):
+                elif ct.startswith('application/x-www-form-urlencoded') or ct.startswith('multipart/form-data'):
                     params = yield from request.post()
                     kw = dict(**params)
                 else:
@@ -122,10 +122,10 @@ class RequestHandler(object):
                     if name in kw:
                         copy[name] = kw[name]
                 kw = copy
-            # check named args
+            # check named arg:
             for k, v in request.match_info.items():
                 if k in kw:
-                    logging.waring('Duplicate arg name in named arg and kw args: %s' % k)
+                    logging.warning('Duplicate arg name in named arg and kw args: %s' % k)
                 kw[k] = v
         if self._has_request_arg:
             kw['request'] = request
@@ -154,7 +154,7 @@ def add_route(app, fn):
     if not asyncio.iscoroutinefunction(fn) and not inspect.isgeneratorfunction(fn):
         fn = asyncio.coroutine(fn)
     logging.info('add route %s %s => %s(%s)' % (method, path, fn.__name__, ', '.join(inspect.signature(fn).parameters.keys())))
-    app.route.add_route(method, path, RequestHandler(app, fn))
+    app.router.add_route(method, path, RequestHandler(app, fn))
 
 def add_routes(app, module_name):
     n = module_name.rfind('.')

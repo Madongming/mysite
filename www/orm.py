@@ -1,19 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-
 __author__ = 'Cody Ma'
-
 
 import asyncio, logging
 
-
 import aiomysql
-
 
 def log(sql, args=()):
     logging.info('SQL: %s' % sql)
-
 
 @asyncio.coroutine
 def create_pool(loop, **kw):
@@ -32,7 +27,6 @@ def create_pool(loop, **kw):
         loop=loop
     )
 
-
 @asyncio.coroutine
 def select(sql, args, size=None):
     log(sql, args)
@@ -47,7 +41,6 @@ def select(sql, args, size=None):
         yield from cur.close()
         logging.info('rows returned: %s' % len(rs))
         return(rs)
-
 
 @asyncio.coroutine
 def execute(sql, args, autocommit=True):
@@ -68,16 +61,13 @@ def execute(sql, args, autocommit=True):
             raise
         return(affected)
 
-
 def create_args_string(num):
     L = []
     for n in range(num):
         L.append('?')
     return(', '.join(L))
 
-
 class Field(object):
-
 
     def __init__(self, name, column_type, primary_key, default):
         self.name = name
@@ -85,48 +75,35 @@ class Field(object):
         self.primary_key = primary_key
         self.default = default
 
-
     def __str__(self):
         return('<%s, %s:%s>' % (self.__class__.__name__, self.column_type, self.name))
 
-
 class StringField(Field):
-
 
     def __init__(self, name=None, primary_key=False, default=None, ddl='varchar(100)'):
         super().__init__(name, ddl, primary_key, default)
 
-
 class BooleanField(Field):
-
 
     def __init__(self, name=None, default=False):
         super().__init__(name, 'boolean', False, default)
 
-
 class IntegerField(Field):
-
 
     def __init__(self, name=None, primary_key=False, default=0):
         super().__init__(name, 'bigint', primary_key, default)
 
-
 class FloatField(Field):
-
 
     def __init__(self, name=None, primary_key=False, default=0.0):
         super().__init__(name, 'real', primary_key, default)
  
-
 class TextField(Field):
-
 
     def __init__(self, name=None, default=None):
         super().__init__(name, 'text', False, default)
  
- 
 class ModelMetaclass(type):
-
 
     def __new__(cls, name, bases, attrs):
         if name=='Model':
@@ -162,13 +139,10 @@ class ModelMetaclass(type):
         attrs['__delete__'] = 'delete from `%s` where `%s`=?' % (tableName, primaryKey)
         return(type.__new__(cls, name, bases, attrs))
 
-
 class Model(dict, metaclass=ModelMetaclass):
-
 
     def __init__(self, **kw):
         super(Model, self).__init__(**kw)
-
 
     def __getattr__(self, key):
         try:
@@ -176,14 +150,11 @@ class Model(dict, metaclass=ModelMetaclass):
         except KeyError:
             raise AttributeError(r"'Model' object has no attribute '%s'" % key)
 
-
     def __setattr__(self, key, value):
         self[key] = value
 
-
     def getValue(self, key):
         return(getattr(self, key, None))
-
 
     def getValueOrDefault(self, key):
         value = getattr(self, key, None)
@@ -194,7 +165,6 @@ class Model(dict, metaclass=ModelMetaclass):
                 logging.debug('using default value for %s: %s' % (key, str(value)))
                 setattr(self, key, value)
         return(value)
-
 
     @classmethod
     @asyncio.coroutine
@@ -224,7 +194,6 @@ class Model(dict, metaclass=ModelMetaclass):
         rs = yield from select(' '.join(sql), args)
         return([cls(**r) for r in rs])
 
- 
     @classmethod
     @asyncio.coroutine
     def findNumber(cls, selectField, where=None, args=None):
@@ -238,7 +207,6 @@ class Model(dict, metaclass=ModelMetaclass):
             return None
         return(rs[0]['_num_'])
 
-
     @classmethod
     @asyncio.coroutine
     def find(cls, pk):
@@ -248,7 +216,6 @@ class Model(dict, metaclass=ModelMetaclass):
             return None
         return(cls(**rs[0]))
 
-
     @asyncio.coroutine
     def save(self):
         args = list(map(self.getValueOrDefault, self.__fields__))
@@ -257,7 +224,6 @@ class Model(dict, metaclass=ModelMetaclass):
         if rows != 1:
             logging.warn('failed to insert record: affected rows: %s' % rows)
 
-
     @asyncio.coroutine
     def update(self):
         args = list(map(self.getValue, self.__fields__))
@@ -265,7 +231,6 @@ class Model(dict, metaclass=ModelMetaclass):
         rows = yield from execute(self.__update__, args)
         if rows != 1:
             logging.warn('failed to update by primary key: affected rows: %s' % rows)
-
 
     @asyncio.coroutine
     def remove(self):
